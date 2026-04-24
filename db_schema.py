@@ -24,12 +24,19 @@ CREATE TABLE IF NOT EXISTS courses (
 );
 
 CREATE TABLE IF NOT EXISTS horses (
-    horse_id TEXT PRIMARY KEY,
-    name     TEXT NOT NULL,
-    region   TEXT,
-    colour   TEXT,
-    sex      TEXT,
-    sex_code TEXT
+    horse_id    TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    age         TEXT,
+    sex         TEXT,
+    sex_code    TEXT,
+    colour      TEXT,
+    region      TEXT,
+    dam         TEXT,
+    dam_id      TEXT,
+    sire        TEXT,
+    sire_id     TEXT,
+    damsire     TEXT,
+    damsire_id  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS jockeys (
@@ -78,7 +85,6 @@ CREATE TABLE IF NOT EXISTS race_entries (
     number          TEXT,
     draw            TEXT,
     headgear        TEXT,
-    age             TEXT,
     lbs             TEXT,
     ofr             TEXT,
     last_run        TEXT,

@@ -37,15 +37,24 @@ class RacingDataLoader:
         if not horse_id:
             return
         cur.execute(
-            """INSERT OR REPLACE INTO horses (horse_id, name, region, colour, sex, sex_code)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+            """INSERT OR REPLACE INTO horses (
+                horse_id, name, age, sex, sex_code, colour, region,
+                dam, dam_id, sire, sire_id, damsire, damsire_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 horse_id,
                 runner.get("horse"),
-                runner.get("region"),
-                runner.get("colour"),
+                runner.get("age"),
                 runner.get("sex"),
                 runner.get("sex_code"),
+                runner.get("colour"),
+                runner.get("region"),
+                runner.get("dam"),
+                self._nn(runner.get("dam_id")),
+                runner.get("sire"),
+                self._nn(runner.get("sire_id")),
+                runner.get("damsire"),
+                self._nn(runner.get("damsire_id")),
             ),
         )
 
@@ -145,7 +154,6 @@ class RacingDataLoader:
                 "number": runner.get("number"),
                 "draw": runner.get("draw"),
                 "headgear": runner.get("headgear"),
-                "age": runner.get("age"),
                 "lbs": runner.get("lbs"),
                 "ofr": runner.get("ofr"),
                 "last_run": runner.get("last_run"),
@@ -153,9 +161,9 @@ class RacingDataLoader:
             }
             if existing:
                 cur.execute(
-                    f"""UPDATE race_entries SET
+                    """UPDATE race_entries SET
                         jockey_id=?, trainer_id=?, owner_id=?, number=?, draw=?,
-                        headgear=?, age=?, lbs=?, ofr=?, last_run=?, form=?
+                        headgear=?, lbs=?, ofr=?, last_run=?, form=?
                         WHERE id=?""",
                     (*pre_race_cols.values(), existing[0]),
                 )
@@ -163,8 +171,8 @@ class RacingDataLoader:
                 cur.execute(
                     """INSERT INTO race_entries (
                         race_id, horse_id, jockey_id, trainer_id, owner_id,
-                        number, draw, headgear, age, lbs, ofr, last_run, form
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        number, draw, headgear, lbs, ofr, last_run, form
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (race_id, horse_id, *pre_race_cols.values()),
                 )
         else:  # result
@@ -175,7 +183,6 @@ class RacingDataLoader:
                 "number": runner.get("number"),
                 "draw": runner.get("draw"),
                 "headgear": runner.get("headgear"),
-                "age": runner.get("age"),
                 "position": runner.get("position"),
                 "weight": runner.get("weight"),
                 "weight_lbs": runner.get("weight_lbs"),
@@ -190,7 +197,6 @@ class RacingDataLoader:
                         number=COALESCE(?, number),
                         draw=COALESCE(?, draw),
                         headgear=COALESCE(?, headgear),
-                        age=COALESCE(?, age),
                         position=?, weight=?, weight_lbs=?, official_rating=?
                         WHERE id=?""",
                     (*post_race_cols.values(), existing[0]),
@@ -199,9 +205,9 @@ class RacingDataLoader:
                 cur.execute(
                     """INSERT INTO race_entries (
                         race_id, horse_id, jockey_id, trainer_id, owner_id,
-                        number, draw, headgear, age,
+                        number, draw, headgear,
                         position, weight, weight_lbs, official_rating
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (race_id, horse_id, *post_race_cols.values()),
                 )
 
