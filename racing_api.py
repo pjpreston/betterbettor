@@ -12,7 +12,7 @@ from pathlib import Path
 load_dotenv(override=True)
 
 BASE_URL = "https://api.theracingapi.com"
-DATA_DIR = Path("/home/pete/projects/BB/DATA")
+DATA_DIR = Path("/home/pete/projects/BB/DATA/TODAY")
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
