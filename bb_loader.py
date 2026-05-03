@@ -1,5 +1,5 @@
 """
-Loader for the BB SQLite database (KAN-27).
+Loader for the BB SQLite database (KAN-27, KAN-29).
 
 Reads a Racing Post CSV (one file per day, filename encodes the date,
 e.g. 2026_04_28.csv) and bulk-inserts its rows into the RACING table
@@ -8,6 +8,14 @@ of /home/pete/projects/BB/DATABASE/BB.db.
 The CSV column "or" is mapped to the table column "official_rating".
 Inserts use INSERT OR REPLACE on the composite primary key
 (date, course, off, horse) so reloading the same file is idempotent.
+
+Header handling is prefix-permissive: the canonical column list is split
+into a required prefix (the original 41 Racing Post columns) and an
+optional suffix (the 7 Betfair columns added in KAN-29). Older CSVs that
+end at "comment" load successfully with the Betfair columns left NULL.
+Note: re-loading the same race row from a short CSV after it was loaded
+from a full one will INSERT OR REPLACE and null out the Betfair columns —
+the most recently loaded CSV is the source of truth.
 """
 
 import csv
@@ -18,18 +26,23 @@ from pathlib import Path
 
 from bb_schema import DB_PATH, create_schema
 
-CSV_COLUMNS = [
+REQUIRED_CSV_COLUMNS = [
     "date", "region", "course", "course_detail", "off", "race_name", "type", "class",
     "pattern", "rating_band", "age_band", "sex_rest", "dist", "dist_f", "dist_m", "going",
     "surface", "ran", "num", "pos", "draw", "ovr_btn", "btn", "horse", "age", "sex", "lbs",
     "hg", "time", "secs", "dec", "jockey", "trainer", "prize", "or", "rpr", "sire", "dam",
     "damsire", "owner", "comment",
 ]
+OPTIONAL_CSV_COLUMNS = ["bsp", "pre_min", "pre_max", "ip_min", "ip_max", "pre_vol", "ip_vol"]
+CSV_COLUMNS = REQUIRED_CSV_COLUMNS + OPTIONAL_CSV_COLUMNS
 
 CSV_TO_DB_COLUMN = {"or": "official_rating"}
 
 INT_COLUMNS = {"dist_m", "ran", "num", "draw", "age", "lbs", "or"}
-FLOAT_COLUMNS = {"dist_f", "secs", "dec", "prize"}
+FLOAT_COLUMNS = {
+    "dist_f", "secs", "dec", "prize",
+    "bsp", "pre_min", "pre_max", "ip_min", "ip_max", "pre_vol", "ip_vol",
+}
 
 _FILENAME_DATE_RE = re.compile(r"^(\d{4})_(\d{2})_(\d{2})\.csv$")
 
@@ -67,25 +80,28 @@ def load_csv(csv_path: Path, db_path: Path = DB_PATH) -> int:
 
     create_schema(db_path)
 
-    db_columns = [CSV_TO_DB_COLUMN.get(c, c) for c in CSV_COLUMNS]
-    columns_sql = ", ".join(db_columns)
-    placeholders = ", ".join(["?"] * len(db_columns))
-    sql = f"INSERT OR REPLACE INTO RACING ({columns_sql}) VALUES ({placeholders})"
-
     rows = []
     mismatched_dates = 0
     with csv_path.open(newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
-        if reader.fieldnames != CSV_COLUMNS:
+        fieldnames = list(reader.fieldnames or [])
+        n = len(fieldnames)
+        if n < len(REQUIRED_CSV_COLUMNS) or fieldnames != CSV_COLUMNS[:n]:
             raise ValueError(
                 "CSV header mismatch.\n"
-                f"  expected: {CSV_COLUMNS}\n"
-                f"  found:    {reader.fieldnames}"
+                f"  expected a prefix of: {CSV_COLUMNS}\n"
+                f"  found:                {fieldnames}"
             )
+
+        db_columns = [CSV_TO_DB_COLUMN.get(c, c) for c in fieldnames]
+        columns_sql = ", ".join(db_columns)
+        placeholders = ", ".join(["?"] * len(db_columns))
+        sql = f"INSERT OR REPLACE INTO RACING ({columns_sql}) VALUES ({placeholders})"
+
         for row in reader:
             if row["date"] != expected_date:
                 mismatched_dates += 1
-            rows.append(tuple(_coerce(col, row[col]) for col in CSV_COLUMNS))
+            rows.append(tuple(_coerce(col, row[col]) for col in fieldnames))
 
     if mismatched_dates:
         print(
