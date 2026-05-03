@@ -15,12 +15,14 @@ import bb_schema
 import bb_loader
 
 CSV_PATH = Path("/home/pete/projects/BB/DATA/RP/DATA/region/all/all/2026_04_28.csv")
+BETFAIR_CSV_PATH = Path("/home/pete/projects/BB/DATA/RP/DATA/region/all/all/2026_03_05.csv")
 EXPECTED_COLUMNS = [
     "date", "region", "course", "course_detail", "off", "race_name", "type", "class",
     "pattern", "rating_band", "age_band", "sex_rest", "dist", "dist_f", "dist_m", "going",
     "surface", "ran", "num", "pos", "draw", "ovr_btn", "btn", "horse", "age", "sex", "lbs",
     "hg", "time", "secs", "dec", "jockey", "trainer", "prize", "official_rating", "rpr",
     "sire", "dam", "damsire", "owner", "comment",
+    "bsp", "pre_min", "pre_max", "ip_min", "ip_max", "pre_vol", "ip_vol",
 ]
 
 
@@ -114,6 +116,13 @@ class LoadCsvTests(unittest.TestCase):
                 "FROM RACING WHERE horse = 'Human Evolution (IRE)' AND pos = '1'"
             ).fetchone()
             self.assertEqual(types, ("real", "integer", "real", "integer"))
+
+            betfair_types = con.execute(
+                "SELECT typeof(bsp), typeof(pre_min), typeof(pre_max), typeof(ip_min), "
+                "typeof(ip_max), typeof(pre_vol), typeof(ip_vol) "
+                "FROM RACING WHERE horse = 'Human Evolution (IRE)' AND pos = '1'"
+            ).fetchone()
+            self.assertEqual(betfair_types, ("null",) * 7)
         finally:
             con.close()
 
@@ -126,6 +135,68 @@ class LoadCsvTests(unittest.TestCase):
                 con.execute("SELECT COUNT(*) FROM RACING").fetchone()[0],
                 420,
             )
+        finally:
+            con.close()
+
+
+@unittest.skipUnless(BETFAIR_CSV_PATH.exists(), f"Input CSV not present at {BETFAIR_CSV_PATH}")
+class LoadCsvWithBetfairTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self._tmp.name) / "BB.db"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_load_inserts_all_rows_with_betfair_columns(self):
+        n = bb_loader.load_csv(BETFAIR_CSV_PATH, db_path=self.db_path)
+        self.assertEqual(n, 419)
+
+        con = sqlite3.connect(self.db_path)
+        try:
+            self.assertEqual(
+                con.execute("SELECT COUNT(*) FROM RACING").fetchone()[0],
+                419,
+            )
+
+            row = con.execute(
+                "SELECT bsp, pre_min, pre_max, ip_min, ip_max, pre_vol, ip_vol "
+                "FROM RACING WHERE date = '2026-03-05' "
+                "ORDER BY course, off, num LIMIT 1"
+            ).fetchone()
+            self.assertIsNotNone(row)
+            for value in row:
+                self.assertIsInstance(value, float)
+
+            betfair_types = con.execute(
+                "SELECT typeof(bsp), typeof(pre_min), typeof(pre_max), typeof(ip_min), "
+                "typeof(ip_max), typeof(pre_vol), typeof(ip_vol) "
+                "FROM RACING WHERE date = '2026-03-05' "
+                "ORDER BY course, off, num LIMIT 1"
+            ).fetchone()
+            self.assertEqual(betfair_types, ("real",) * 7)
+        finally:
+            con.close()
+
+    def test_load_with_betfair_is_idempotent(self):
+        bb_loader.load_csv(BETFAIR_CSV_PATH, db_path=self.db_path)
+        first = sqlite3.connect(self.db_path).execute(
+            "SELECT bsp, pre_vol FROM RACING WHERE date = '2026-03-05' "
+            "ORDER BY course, off, num LIMIT 1"
+        ).fetchone()
+
+        bb_loader.load_csv(BETFAIR_CSV_PATH, db_path=self.db_path)
+        con = sqlite3.connect(self.db_path)
+        try:
+            self.assertEqual(
+                con.execute("SELECT COUNT(*) FROM RACING").fetchone()[0],
+                419,
+            )
+            second = con.execute(
+                "SELECT bsp, pre_vol FROM RACING WHERE date = '2026-03-05' "
+                "ORDER BY course, off, num LIMIT 1"
+            ).fetchone()
+            self.assertEqual(first, second)
         finally:
             con.close()
 

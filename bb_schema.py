@@ -58,6 +58,13 @@ CREATE TABLE IF NOT EXISTS RACING (
     damsire          TEXT,
     owner            TEXT,
     comment          TEXT,
+    bsp              REAL,
+    pre_min          REAL,
+    pre_max          REAL,
+    ip_min           REAL,
+    ip_max           REAL,
+    pre_vol          REAL,
+    ip_vol           REAL,
     PRIMARY KEY (date, course, off, horse)
 );
 """

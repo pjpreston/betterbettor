@@ -61,8 +61,16 @@ def _build_system_prompt(df: pd.DataFrame, label: str) -> str:
     return (
         "You are a horse racing analysis assistant. You have access to the following "
         f"rows from the RACING table ({label}), in CSV format. Each row is one horse's "
-        "run in one race. Answer the user's questions using only this data. If the data "
-        "does not contain the answer, say so plainly.\n\n"
+        "run in one race.\n\n"
+        "Column notes:\n"
+        "- `dec` = industry/bookmaker starting price (decimal odds).\n"
+        "- `bsp` = Betfair Exchange starting price (decimal odds). `dec` and `bsp` "
+        "are different markets and will differ.\n"
+        "- `pre_min` / `pre_max` = pre-race Betfair odds range; `ip_min` / `ip_max` "
+        "= in-play range. Values may be null for older races.\n"
+        "- `pre_vol` / `ip_vol` = matched volume in £ on Betfair (pre-race / in-play).\n\n"
+        "Answer the user's questions using only this data. If the data does not contain "
+        "the answer, say so plainly.\n\n"
         f"{body}"
     )
 
